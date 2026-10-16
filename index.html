@@ -15,6 +15,7 @@
 <style>
 :root {
   --desk: #e8eaef; --ink: #15171c; --muted: #5e6470; --peek: 4.25rem;
+  --tx: 0; --ty: 0; /* tilt, -1..1, set from the pointer or the phone's gyro */
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -32,7 +33,15 @@ h1 {
   margin: 0; font-size: clamp(3.25rem, 16vw, 5.5rem); line-height: .88;
   font-weight: 850; font-stretch: 125%; letter-spacing: -.035em;
 }
-.lede { margin: .9rem 0 1.75rem; color: var(--muted); font-size: 1.1rem; }
+/* Each word is a slot the letters rise up through */
+.line { display: inline-block; overflow: hidden; padding: .1em 0 .16em; margin: -.1em 0 -.16em; }
+.line > span { display: inline-block; animation: rise .8s cubic-bezier(.2, .9, .25, 1.1) backwards; animation-delay: calc(var(--d) * 45ms); }
+.lede { margin: .9rem 0 1.75rem; color: var(--muted); font-size: 1.1rem; animation: fade .6s .4s backwards; }
+
+.tilt {
+  transform: perspective(60rem) rotateX(calc(var(--ty) * -6deg)) rotateY(calc(var(--tx) * 8deg));
+  transition: transform .5s cubic-bezier(.2, .8, .2, 1);
+}
 
 /* The wallet: every card sits in one grid cell, each pushed down one peek further. */
 .wallet { display: grid; }
@@ -42,18 +51,32 @@ h1 {
   display: flex; flex-direction: column; padding: 1.1rem 1.25rem 1rem;
   border-radius: 1.1rem; color: #fff; text-decoration: none;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / .14), 0 -8px 20px -10px rgb(0 0 0 / .35), 0 22px 34px -20px rgb(0 0 0 / .55);
-  transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+  transition: transform .3s cubic-bezier(.2, .8, .2, 1), filter .3s;
   animation: deal .75s cubic-bezier(.2, .9, .3, 1.15) backwards;
-  animation-delay: calc(var(--i) * 90ms + 120ms);
+  animation-delay: calc(var(--i) * 90ms + 350ms);
 }
-/* Light catching the plastic */
-.card::after {
+/* Light catching the plastic; the hotspot follows the tilt */
+.card::after, .front::after, .back::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(115deg, rgb(255 255 255 / .2), transparent 42%);
+  background:
+    radial-gradient(70% 60% at calc(30% + var(--tx) * 50%) calc(10% + var(--ty) * 50%), rgb(255 255 255 / .22), transparent 70%),
+    linear-gradient(115deg, rgb(255 255 255 / .14), transparent 42%);
+}
+/* A glint that rolls down the stack every few seconds */
+.card::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-120%);
+  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / .32) 50%, transparent 62%);
+  animation: glint 7s ease-in-out calc(2s + var(--i) * 150ms) infinite;
 }
 .card:hover { transform: translateY(-.8rem); }
 .card:active { transform: translateY(-.4rem) scale(.99); }
 .card:focus-visible { z-index: 1; transform: translateY(-.8rem); outline: 3px solid var(--ink); outline-offset: 3px; }
+/* Tapped: the card slides out to the top of the wallet, the rest sink back */
+.wallet.picking .card:not(.picked) { transform: translateY(.75rem) scale(.97); filter: brightness(.7) saturate(.8); }
+.card.picked {
+  z-index: 2; transform: translateY(calc(var(--i) * var(--peek) * -1 - 1.25rem)) scale(1.04) rotate(-1.5deg);
+  transition-duration: .5s; transition-timing-function: cubic-bezier(.2, 1.4, .4, 1);
+}
 
 .brand { display: flex; align-items: center; gap: .6rem; font-size: 1.2rem; font-weight: 700; }
 .brand svg { width: 1.6rem; height: 1.6rem; fill: currentColor; flex: none; }
@@ -73,18 +96,28 @@ h1 {
     radial-gradient(90% 80% at 0% 100%, rgb(0 190 210 / .3), transparent 60%),
     #191c1f;
 }
-.monzo { background: linear-gradient(135deg, #ff6a5c, #f23d2e); color: #14233c; }
+.monzo, .front, .back { background: linear-gradient(135deg, #ff6a5c, #f23d2e); color: #14233c; }
 .starling { background: linear-gradient(140deg, #7b4ae6, #4b1fb0); }
 
 .bank { margin-top: 2.75rem; }
 .bank h2 { margin: 0; font-size: 1.75rem; line-height: 1; font-weight: 800; font-stretch: 118%; letter-spacing: -.025em; }
 .bank > p { margin: .5rem 0 1.1rem; color: var(--muted); }
 /* The back of the Monzo card: magstripe, then the details where the signature strip goes */
-.back {
-  border-radius: 1.1rem; overflow: hidden; padding: 0 1.25rem 1.25rem;
-  background: linear-gradient(135deg, #ff6a5c, #f23d2e); color: #14233c;
+.front, .back {
+  position: relative; border-radius: 1.1rem; overflow: hidden;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / .14), 0 22px 34px -20px rgb(0 0 0 / .55);
 }
+.back { padding: 0 1.25rem 1.25rem; }
+.front { display: flex; flex-direction: column; padding: 1.1rem 1.25rem 1rem; cursor: pointer; }
+/* Scrolled into view, the Monzo card turns over to show the details on its back */
+.flip { display: grid; }
+.flip > * {
+  grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  transition: transform .9s cubic-bezier(.3, 1.3, .5, 1);
+}
+.front { transform: perspective(70rem) rotateY(-180deg); pointer-events: none; }
+.face-up .front { transform: perspective(70rem); pointer-events: auto; }
+.face-up .back { transform: perspective(70rem) rotateY(180deg); pointer-events: none; }
 .back::before { content: ""; display: block; height: 2.6rem; margin: 1.1rem -1.25rem .6rem; background: #1b1d22; }
 .row {
   display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 1rem;
@@ -100,20 +133,25 @@ h1 {
 .back button:active { transform: scale(.97); }
 .back button:focus-visible { outline: 2px solid #14233c; outline-offset: 2px; }
 .back .all { width: 100%; margin-top: 1.1rem; padding: .85rem; font-size: 1rem; }
+.back button.done { background: #fff; color: #14233c; animation: pop .4s cubic-bezier(.3, 1.6, .5, 1); }
+.row.lit .value { animation: lit .7s cubic-bezier(.3, 1.4, .5, 1) calc(var(--d, 0) * 90ms); }
 
-@keyframes deal {
-  from { transform: translateY(60vh) rotate(-6deg); opacity: 0; }
-}
+@keyframes rise { from { transform: translateY(110%) rotate(10deg); } }
+@keyframes fade { from { opacity: 0; transform: translateY(.5rem); } }
+@keyframes deal { from { transform: translateY(60vh) rotate(-6deg); opacity: 0; } }
+@keyframes glint { 0%, 72% { transform: translateX(-120%); } 86%, 100% { transform: translateX(120%); } }
+@keyframes pop { 40% { transform: scale(1.08); } }
+@keyframes lit { 30% { transform: translateX(.4rem); color: #fff; } }
 @media (prefers-reduced-motion: reduce) {
-  .card { animation: none; transition: none; }
+  *, ::before, ::after { animation: none !important; transition: none !important; }
 }
 </style>
 </head>
 <body>
 <main>
-  <h1>Pay Kelvin</h1>
+  <h1 aria-label="Pay Kelvin"><span class="line" aria-hidden="true"><span style="--d:0">P</span><span style="--d:1">a</span><span style="--d:2">y</span></span> <span class="line" aria-hidden="true"><span style="--d:3">K</span><span style="--d:4">e</span><span style="--d:5">l</span><span style="--d:6">v</span><span style="--d:7">i</span><span style="--d:8">n</span></span></h1>
   <p class="lede">Tap the app you've got.</p>
-  <nav class="wallet">
+  <nav class="wallet tilt">
     <a class="card paypal" style="--i:0" href="https://www.paypal.me/nyakundi" aria-label="Pay with PayPal">
       <span class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.607 4.653H8.941L6.645 19.251H1.82L4.862 0h7.995c3.754 0 6.375 2.294 6.473 5.513-.648-.478-2.105-.86-3.722-.86m6.57 5.546c0 3.41-3.01 6.853-6.958 6.853h-2.493L11.595 24H6.74l1.845-11.538h3.592c4.208 0 7.346-3.634 7.153-6.949a5.24 5.24 0 0 1 2.848 4.686M9.653 5.546h6.408c.907 0 1.942.222 2.363.541-.195 2.741-2.655 5.483-6.441 5.483H8.714Z"/></svg>PayPal</span>
       <span class="chip"></span>
@@ -127,7 +165,7 @@ h1 {
       <span class="holder">Kelvin Nyakundi</span>
     </a>
     <a class="card monzo" style="--i:2" href="https://monzo.me/kelvinnyakundi" aria-label="Pay with Monzo">
-      <span class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.244 1.174a.443.443 0 00-.271.13l-3.97 3.97-.001.001c3.884 3.882 8.093 8.092 11.748 11.748v-8.57L4.602 1.305a.443.443 0 00-.358-.131zm15.483 0a.443.443 0 00-.329.13L12.25 8.456v8.568L24 5.275c-1.316-1.322-2.647-2.648-3.97-3.97a.443.443 0 00-.301-.131zM0 5.979l.002 10.955c0 .294.118.577.326.785l4.973 4.976c.28.282.76.083.758-.314V12.037zm23.998.003l-6.06 6.061v10.338c-.004.399.48.6.76.314l4.974-4.976c.208-.208.326-.49.326-.785z"/></svg>Monzo</span>
+      <span class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="monzo-logo" d="M4.244 1.174a.443.443 0 00-.271.13l-3.97 3.97-.001.001c3.884 3.882 8.093 8.092 11.748 11.748v-8.57L4.602 1.305a.443.443 0 00-.358-.131zm15.483 0a.443.443 0 00-.329.13L12.25 8.456v8.568L24 5.275c-1.316-1.322-2.647-2.648-3.97-3.97a.443.443 0 00-.301-.131zM0 5.979l.002 10.955c0 .294.118.577.326.785l4.973 4.976c.28.282.76.083.758-.314V12.037zm23.998.003l-6.06 6.061v10.338c-.004.399.48.6.76.314l4.974-4.976c.208-.208.326-.49.326-.785z"/></svg>Monzo</span>
       <span class="chip"></span>
       <span class="handle">monzo.me/kelvinnyakundi</span>
       <span class="holder">Kelvin Nyakundi</span>
@@ -143,25 +181,88 @@ h1 {
   <section class="bank" aria-labelledby="bank-h">
     <h2 id="bank-h">Bank transfer</h2>
     <p>Straight into my Monzo account.</p>
+    <div class="flip tilt">
+    <div class="front" aria-hidden="true">
+      <span class="brand"><svg viewBox="0 0 24 24"><use href="#monzo-logo"/></svg>Monzo</span>
+      <span class="chip"></span>
+      <span class="holder">Kelvin Nyakundi</span>
+    </div>
     <div class="back">
       <div class="row"><span class="label">Name</span><span class="value">Kelvin Nyakundi</span><button type="button" data-copy="Kelvin Nyakundi" aria-label="Copy name">Copy</button></div>
       <div class="row"><span class="label">Sort code</span><span class="value">04-00-04</span><button type="button" data-copy="040004" aria-label="Copy sort code">Copy</button></div>
       <div class="row"><span class="label">Account number</span><span class="value">11280958</span><button type="button" data-copy="11280958" aria-label="Copy account number">Copy</button></div>
       <button type="button" class="all" data-copy="Name: Kelvin Nyakundi&#10;Sort code: 04-00-04&#10;Account number: 11280958">Copy all details</button>
     </div>
+    </div>
   </section>
 </main>
 <script>
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const buzz = ms => navigator.vibrate?.(ms);
+const replay = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+// Copy: the button pops and says so, and the copied values nudge in turn
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]');
   if (!b) return;
   navigator.clipboard.writeText(b.dataset.copy).then(() => {
+    buzz(10);
     b.dataset.label ??= b.textContent;
     b.textContent = 'Copied';
+    replay(b, 'done');
+    const rows = b.classList.contains('all') ? [...document.querySelectorAll('.row')] : [b.closest('.row')];
+    rows.forEach((r, i) => { r.style.setProperty('--d', i); replay(r, 'lit'); });
     clearTimeout(b.timer);
-    b.timer = setTimeout(() => b.textContent = b.dataset.label, 1500);
+    b.timer = setTimeout(() => { b.textContent = b.dataset.label; b.classList.remove('done'); }, 1600);
   });
 });
+
+// Tap a card: pull it out of the wallet, then open the link
+const wallet = document.querySelector('.wallet');
+const putBack = () => { wallet.classList.remove('picking'); wallet.querySelector('.picked')?.classList.remove('picked'); };
+wallet.addEventListener('click', e => {
+  const card = e.target.closest('.card');
+  if (!card || reduce || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  buzz(12);
+  wallet.classList.add('picking');
+  card.classList.add('picked');
+  // An app link can leave this page open behind the app, so put the card back afterwards
+  setTimeout(() => { location.href = card.href; setTimeout(putBack, 1500); }, 520);
+});
+addEventListener('pageshow', putBack);
+
+const flip = document.querySelector('.flip');
+flip.querySelector('.front').addEventListener('click', () => flip.classList.remove('face-up'));
+
+if (!reduce) {
+  // Bank card starts face up and turns over once it's in view
+  flip.classList.add('face-up');
+  new IntersectionObserver(([en], io) => {
+    if (!en.isIntersecting) return;
+    setTimeout(() => flip.classList.remove('face-up'), 300);
+    io.disconnect();
+  }, { threshold: .6 }).observe(flip);
+
+  // Tilt: follows the mouse, or how the phone moves (re-centring slowly on however it's held)
+  const root = document.documentElement.style;
+  const clamp = v => Math.max(-1, Math.min(1, v));
+  let tx = 0, ty = 0, queued = false, base;
+  const tilt = (x, y) => {
+    tx = clamp(x); ty = clamp(y);
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { root.setProperty('--tx', tx.toFixed(3)); root.setProperty('--ty', ty.toFixed(3)); queued = false; });
+  };
+  addEventListener('pointermove', e => e.pointerType === 'mouse' && tilt(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1));
+  addEventListener('deviceorientation', e => {
+    if (e.beta == null) return;
+    base ??= { b: e.beta, g: e.gamma };
+    base.b += (e.beta - base.b) * .02;
+    base.g += (e.gamma - base.g) * .02;
+    tilt((e.gamma - base.g) / 15, (e.beta - base.b) / 15);
+  });
+}
 </script>
 </body>
 </html>
