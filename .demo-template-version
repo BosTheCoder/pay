@@ -1,0 +1,18 @@
+_commit: b513571eeab1e3a16f60dfd709cf6f0147df6b31
+_src_path: https://github.com/BosTheCoder/demo-tools
+_subdirectory: src/demo_tools/_data/template
+dockerised: false
+domain_base: demos.buildwithbos.com
+host_port: 8000
+hostnames:
+- pay.demos.buildwithbos.com
+internal_port: 8000
+name: pay
+pages_ok: true
+profile: demo
+publish_mode: root
+stack: html
+stateful: false
+tailscale_host: bos-desktop.fish-grouper.ts.net
+tailscale_path: /pay
+target: pages
