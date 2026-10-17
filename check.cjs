@@ -1,5 +1,5 @@
-// Drives the page in Chromium at phone size: a tapped card still opens its link
-// after the pull-out animation, the bank card turns over, and Copy copies.
+// Drives the page in Chromium at phone size: the first tap on a card brings it forward,
+// the second opens its link, the bank card turns over to copy buttons, and Copy copies.
 // Run: NODE_PATH=~/projects/personal/buildwithbos.com/node_modules node check.cjs
 const { chromium } = require('playwright');
 const assert = require('assert');
@@ -23,13 +23,16 @@ const CHROME = process.env.CHROME || path.join(os.homedir(), '.cache/ms-playwrig
   await page.waitForTimeout(1500);
   const card = page.locator('.card.monzo');
   const href = await card.getAttribute('href');
-  await Promise.all([page.waitForURL(href, { timeout: 3000 }), card.click({ position: { x: 120, y: 24 } })]);
-  console.log('ok  tapped card opens', href);
+  await card.click({ position: { x: 120, y: 24 } });
+  await page.waitForTimeout(800);
+  assert.equal(page.url(), url, 'first tap should bring the card forward, not open it');
+  await Promise.all([page.waitForURL(href, { timeout: 3000 }), card.click()]);
+  console.log('ok  first tap brings a card forward, second opens', href);
 
   await page.goto(url);
-  await page.locator('.flip').scrollIntoViewIfNeeded();
   await page.waitForTimeout(1500);
-  assert.equal(await page.locator('.flip.face-up').count(), 0, 'bank card never turned over');
+  await page.locator('.bank .front').click();
+  await page.waitForTimeout(1200);
   console.log('ok  bank card turns over');
 
   await page.locator('.row button').nth(1).click();
