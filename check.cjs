@@ -41,6 +41,11 @@ const CHROME = process.env.CHROME || path.join(os.homedir(), '.cache/ms-playwrig
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Name: .+\nSort code: \d\d-\d\d-\d\d\nAccount number: \d{8}$/);
   console.log('ok  copy buttons');
 
+  await page.goto(url + '?amount=12.5');
+  const hrefs = await page.$$eval('a.card', as => as.map(a => a.href));
+  assert.deepEqual(hrefs.map(h => h.match(/12\.50GBP$|\/12\.50$|amount=1250&currency=GBP$|amount=12\.50$/)?.[0]), ['12.50GBP', 'amount=1250&currency=GBP', '/12.50', 'amount=12.50']);
+  console.log('ok  ?amount= pre-fills every link');
+
   await browser.close();
   server.close();
 })().catch(e => { console.error('FAIL', e.message); process.exit(1); });

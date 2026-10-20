@@ -232,6 +232,18 @@ h1 {
   </nav>
 </main>
 <script>
+// ?amount=12.50 pre-fills the amount in every app (formats checked against each live page 2026-10-20)
+const amount = Number(new URLSearchParams(location.search).get('amount'));
+if (amount > 0 && isFinite(amount)) {
+  const a = amount.toFixed(2);
+  const link = (sel, f) => { const el = document.querySelector(sel), u = new URL(el.href); f(u); el.href = u; };
+  link('.paypal', u => u.pathname += `/${a}GBP`);
+  link('.monzo', u => u.pathname += `/${a}`);
+  link('.revolut', u => { u.searchParams.set('amount', Math.round(a * 100)); u.searchParams.set('currency', 'GBP'); });
+  link('.starling', u => u.searchParams.set('amount', a));
+  document.querySelector('.lede').textContent = `£${a}. Tap the app you've got.`;
+}
+
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const buzz = ms => navigator.vibrate?.(ms);
 const replay = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
